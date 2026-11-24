@@ -1,407 +1,254 @@
-# MEDIROZA GENERAL HOSPITAL
-## External Web Application Penetration Testing Report
+# Mediroza General Hospital — Penetration Test Report
 
-**Networkwalks Cybersecurity Internship – Week 4**
+![Cybersecurity](https://img.shields.io/badge/Focus-Cybersecurity-blue)
+![Project](https://img.shields.io/badge/Project-Web%20Application%20Pentesting-red)
+![Networkwalks](https://img.shields.io/badge/Program-Networkwalks-darkblue)
+![Status](https://img.shields.io/badge/Status-Completed-brightgreen)
 
-| Project detail | Information |
-|---|---|
-| Assessment target | `https://medirozahospital.com` |
-| Assessment type | Authorized black-box web application penetration test |
-| Testing period | 23–24 November 2026 |
-| Assessment window | Five-day assigned testing window |
-| Environment | Kali Linux and web browser |
-| Report date | 24 November 2026 |
-| Report status | Completed |
+**Date:** 24 November 2026  
+**Prepared by:** Zamzam Mohammed  
+**Engagement:** Networkwalks Cybersecurity Internship — Week 4  
+**Type:** Authorized Black-Box Penetration Test  
+**Target:** https://medirozahospital.com
 
 ---
 
 ## 1. Executive Summary
 
-This report documents an authorized black-box penetration testing assessment conducted against the assigned Mediroza General Hospital web application as part of the Networkwalks Cybersecurity Internship.
+Between 23–24 November 2026, a black-box penetration test was conducted against Mediroza General Hospital's public web infrastructure (https://medirozahospital.com), as authorized under the engagement scope. The objective was to assess the hospital's external security posture and determine whether an unauthenticated attacker could access confidential patient and business data.
 
-The purpose of the assessment was to identify security weaknesses in the exposed web application, evaluate authentication and access controls, examine publicly accessible files, and determine whether sensitive information could be accessed through the identified weaknesses.
+The engagement was a full success for the attacker. Three separate, chained vulnerabilities allowed complete compromise of patient confidentiality and exposure of sensitive internal business data:
 
-The assessment identified several security issues, including SQL injection in the patient login functionality, username enumeration, access to protected pathology reports, weak PDF password protection, directory exposure, metadata information disclosure, and an exposed database backup.
+1. An SQL injection vulnerability in the patient portal login (`/patient/login.php`) allowed full authentication bypass without valid credentials, granting access to three confidential patient pathology reports.
+2. All three retrieved PDF reports were protected by weak, guessable passwords, which were cracked in seconds using a standard wordlist attack.
+3. Sensitive metadata embedded in one PDF disclosed the existence of an abandoned database backup file left publicly accessible in an `/old/` directory. This backup exposed the full staff roster — including national ID numbers and monthly salaries for all 30 employees — and the complete shareholder register.
 
-The most significant finding was an SQL injection vulnerability affecting the patient login endpoint. Testing demonstrated that the weakness could be used to bypass the expected authentication process and access the reports portal.
+**Overall risk to the client: Critical.** An anonymous, unauthenticated attacker with no privileged access was able to fully compromise patient confidentiality, extract personally identifiable information for all staff, and expose sensitive financial and ownership data. The root causes — unsanitized user input, weak password policy, directory listing enabled, and a forgotten backup file — are all well-understood issues that are straightforward to remediate.
 
-Three PDF pathology reports were subsequently obtained and examined. Password testing with pdfcrack demonstrated that the documents were protected using weak passwords. Further examination of the PDF metadata revealed information that helped guide the investigation towards an exposed database backup.
+### Findings Summary
 
-The database backup contained staff and shareholder records, demonstrating the potential impact of the information disclosure.
-
-Overall, the assessment demonstrated how weaknesses in authentication, document protection, directory configuration, and information handling can combine to expose sensitive information.
-
-## 2. Assessment Objectives
-
-The assessment aimed to:
-
-- Identify exposed services and gather information about the target.
-- Discover accessible directories and files.
-- Examine the web application's authentication functionality.
-- Test for SQL injection and username enumeration.
-- Determine whether protected reports could be accessed.
-- Examine PDF password protection and encryption settings.
-- Inspect PDF metadata for information disclosure.
-- Investigate the exposed database backup.
-- Identify the potential impact of the findings.
-- Recommend practical security improvements.
-
-## 3. Scope and Authorization
-
-The assessment was conducted against the assigned training target:
-
-`https://medirozahospital.com`
-
-The engagement was described as an authorized black-box assessment within the assigned five-day testing window. Practical testing documented in this report took place on 23 and 24 November 2026.
-
-The assessment focused on externally accessible web application functionality, exposed services, directories, documents, and database backup information.
-
-Testing activities included reconnaissance, service scanning, directory discovery, manual web application testing, PDF examination, and database backup analysis.
-
-No claim is made that the assessment covered the hospital's entire internal infrastructure or source code.
-
-## 4. Methodology
-
-The assessment followed a structured testing process.
-
-### 4.1 Reconnaissance and information gathering
-
-Initial information gathering was performed to understand the target and identify externally visible services.
-
-WHOIS was used for domain-registration information, while Nmap was used to identify exposed services and perform service/version detection.
-
-### 4.2 Directory and file discovery
-
-Gobuster was used to identify directories and potentially accessible files.
-
-The discovery of an old directory provided an additional area for investigation.
-
-### 4.3 Web application testing
-
-The patient login functionality was examined using a web browser and developer tools. Manual testing identified SQL injection behaviour and username enumeration.
-
-### 4.4 Document examination
-
-The pathology PDF reports were examined using qpdf and ExifTool. pdfcrack was used for password testing, with a wordlist from SecLists, including rockyou.txt.
-
-John the Ripper was also attempted, but it did not work successfully in this exercise. pdfcrack was therefore used for the successful password-testing process.
-
-### 4.5 Database backup investigation
-
-The exposed SQL backup was downloaded for examination within the assigned assessment. Command-line utilities, including grep and sed, were used to search and review relevant portions of the file.
-
-## 5. Tools Used
-
-| Tool | Purpose |
-|---|---|
-| WHOIS | Domain-registration information gathering |
-| Nmap | Network scanning and service/version detection |
-| Gobuster | Directory and file discovery |
-| SecLists / rockyou.txt | Wordlist used during password testing |
-| Browser Developer Tools | Inspection of web application behaviour |
-| Manual SQL injection testing | Testing the patient login functionality |
-| pdfcrack | PDF password testing and recovery |
-| qpdf | PDF structure and encryption inspection |
-| ExifTool | PDF metadata examination |
-| wget | Downloading accessible files for examination |
-| grep | Searching file contents for relevant information |
-| sed | Reviewing and processing text output |
-| John the Ripper | Attempted, but unsuccessful during this exercise |
-
-## 6. Technical Findings
-
-### Finding 1: SQL Injection in Patient Login
-
-**Affected endpoint:** `/patient/login.php`
-
-**Severity:** Critical
-
-**Description:**
-
-Testing of the patient login functionality identified SQL injection behaviour. The application did not properly handle user-supplied input before processing it in the backend database query.
-
-Manual testing demonstrated that the weakness could be used to bypass the expected authentication process.
-
-**Impact:**
-
-An attacker could potentially bypass authentication and gain access to functionality intended for authenticated users. In this assessment, the weakness allowed access to the patient reports portal.
-
-**Evidence:** `Finding1_SQLi_SyntaxError.png`
-
-**Recommendation:**
-
-- Use parameterized queries and prepared statements.
-- Validate and safely handle all user-supplied input.
-- Avoid constructing SQL queries through direct string concatenation.
-- Apply least-privilege permissions to database accounts.
-- Use generic authentication error messages.
-- Conduct security testing after remediation.
-
-### Finding 2: Username Enumeration
-
-**Severity:** Medium
-
-**Description:**
-
-The login functionality returned responses that could help distinguish valid usernames from invalid ones.
-
-Differences in application responses can allow an attacker to identify potentially valid accounts.
-
-**Impact:**
-
-Username enumeration could make password-guessing and targeted account attacks easier.
-
-**Evidence:** `Finding2_UsernameEnumeration.png`
-
-**Recommendation:**
-
-- Use consistent login error messages.
-- Avoid revealing whether a username exists.
-- Implement rate limiting and account protection mechanisms.
-- Monitor repeated authentication failures.
-
-### Finding 3: Access to Patient Reports
-
-**Severity:** Critical
-
-**Description:**
-
-Following the successful authentication bypass, the reports portal became accessible and three pathology PDF reports were obtained for examination.
-
-This demonstrated that the application did not adequately protect access to sensitive reports after the authentication weakness was exploited.
-
-**Impact:**
-
-Unauthorized access to pathology reports could expose confidential medical information and affect patient privacy.
-
-**Evidence:**
-
-- `Finding3_SuccessfulAccess_PortalReports.png`
-- Sanitized versions of the three opened-report screenshots.
-
-**Recommendation:**
-
-- Enforce server-side authentication and authorization checks.
-- Verify that each user is permitted to access the requested document.
-- Prevent direct access to sensitive files through predictable URLs.
-- Store confidential documents outside publicly accessible directories.
-- Log and monitor access to sensitive reports.
-
-### Finding 4: Directory Discovery and Exposure
-
-**Affected location:** `/old/`
-
-**Severity:** High
-
-**Description:**
-
-Gobuster identified an old directory during the directory discovery stage.
-
-Further investigation showed that the directory exposed files that should not have been publicly accessible, including a database backup.
-
-**Impact:**
-
-Exposed directories can reveal old application files, backups, and other information that may assist an attacker.
-
-**Evidence:** `Finding4_GobusterScan_OldDirectoryDiscovered.png`
-
-**Recommendation:**
-
-- Remove unnecessary directories and files from the web root.
-- Disable directory listing.
-- Restrict access to administrative and backup locations.
-- Review web server configuration.
-- Regularly scan for unintended file exposure.
-
-### Finding 5: Weak PDF Password Protection
-
-**Severity:** High
-
-**Description:**
-
-The three pathology PDF reports were password-protected. PDF examination was performed using qpdf, and password testing was conducted using pdfcrack with a wordlist from SecLists.
-
-The testing demonstrated that the document passwords were weak and could be recovered.
-
-The recovered credentials are intentionally not reproduced in this report.
-
-**Impact:**
-
-Weak document passwords reduce the protection provided by password-protected files. If an attacker obtains a copy of a document, weak passwords may allow its contents to be accessed.
-
-**Evidence:**
-
-- `Finding5_PdfCrack_Report1.png`
-- `Finding6_PdfCrack_Reports2and3.png`
-- Sanitized PDF examination and hash evidence, where included.
-
-**Recommendation:**
-
-- Use strong, unique passwords for sensitive documents.
-- Use modern encryption settings supported by the document format and software.
-- Do not rely on weak or predictable passwords.
-- Restrict access to sensitive reports independently of PDF passwords.
-- Review encryption settings using appropriate PDF inspection tools.
-
-### Finding 6: PDF Metadata Information Disclosure
-
-**Severity:** Medium
-
-**Description:**
-
-ExifTool was used to examine metadata contained in the PDF documents.
-
-The metadata examination revealed a comment containing information that provided a useful lead for further investigation into the old directory and database backup.
-
-This demonstrated that document metadata can unintentionally disclose information about internal files or application structure.
-
-**Impact:**
-
-Metadata can reveal internal naming conventions, file locations, comments, software details, and other information that may assist further investigation.
-
-**Evidence:** `Finding11_Metadata_CriticalLead.png`
-
-**Recommendation:**
-
-- Remove unnecessary metadata before publishing documents.
-- Review document properties and comments.
-- Avoid including internal paths or backup references in public documents.
-- Apply document sanitization procedures before files are distributed.
-
-### Finding 7: Exposed Database Backup
-
-**Affected file:** `/old/mediroza_db_backup_2019.sql`
-
-**Severity:** Critical
-
-**Description:**
-
-Further investigation of the old directory identified an exposed SQL database backup.
-
-The backup was accessible through the web application and was downloaded for examination within the assigned assessment.
-
-Review of the database contents identified staff and shareholder information.
-
-The staff records included personal and employment-related information, while the shareholder table contained shareholder details and ownership percentages.
-
-**Impact:**
-
-Public exposure of a database backup can lead to significant information disclosure. Depending on the information stored, this can affect employee privacy, organizational confidentiality, and the security of the wider application.
-
-**Evidence:**
-
-- `Finding10_OldDirectory_BackupExposed.png`
-- `Finding12_Shareholders_TableData.png`
-- `Finding13_Staff_TableData.png`
-
-**Recommendation:**
-
-- Store database backups outside the public web root.
-- Restrict backup access to authorized administrators.
-- Remove unnecessary historical backups from production servers.
-- Disable directory listing.
-- Apply appropriate access controls to backup storage.
-- Encrypt backups at rest and in transit.
-- Review backup retention and deletion procedures.
-- Investigate whether exposed information was accessed by unauthorized parties.
-
-## 7. Nmap Service Discovery
-
-Nmap service/version detection identified the following exposed services during the assessment:
-
-| Port | Service identified |
-|---:|---|
-| 21 | FTP |
-| 25 | SMTP |
-| 26 | SMTP |
-| 53 | DNS |
-| 80 | HTTP |
-| 143 | IMAP |
-| 443 | HTTPS |
-| 465 | SMTP over SSL/TLS |
-| 587 | SMTP submission |
-| 993 | IMAPS |
-| 995 | POP3S |
-
-One additional service response was not identified by Nmap.
-
-**Security observations:**
-
-- Exposed services should be reviewed to confirm that they are required.
-- Unnecessary services should be disabled.
-- Services should be kept updated and securely configured.
-- Administrative access should be restricted.
-- Mail and file-transfer services should use secure configurations.
-
-Service discovery alone does not prove that a service is vulnerable. Further authorized testing would be required to establish specific weaknesses.
-
-## 8. Risk Summary
-
-| Finding | Severity |
-|---|---|
-| SQL injection in patient login | Critical |
-| Access to patient reports | Critical |
-| Username enumeration | Medium |
-| Directory and backup exposure | High / Critical |
-| Weak PDF password protection | High |
-| PDF metadata information disclosure | Medium |
-| Exposed database backup | Critical |
-
-The severity ratings reflect the potential impact and access demonstrated during the assessment. The exposed database backup and authentication bypass present particularly serious risks because they can lead to unauthorized access to sensitive information.
-
-## 9. Overall Recommendations
-
-The organization should prioritize the following actions:
-
-1. Remediate SQL injection through parameterized queries and secure database access.
-2. Enforce server-side authentication and authorization checks.
-3. Restrict access to patient reports and other confidential documents.
-4. Replace weak document passwords with strong protection.
-5. Remove exposed database backups from public directories.
-6. Disable directory listing and review web server configuration.
-7. Remove unnecessary metadata from documents.
-8. Review username enumeration and authentication error handling.
-9. Review exposed network services and disable unnecessary services.
-10. Implement security logging, monitoring, and regular vulnerability assessments.
-11. Review whether any sensitive information was accessed and follow applicable incident-response and data-protection procedures.
-
-## 10. Limitations
-
-This assessment was conducted within the assigned training scope and time window.
-
-The results represent observations made during the testing period. They do not establish that every component of the target infrastructure was assessed.
-
-No claim is made that remediation was implemented or independently verified during this engagement.
-
-Service identification results should not be interpreted as proof that every discovered service was vulnerable.
-
-## 11. Conclusion
-
-The assessment demonstrated how multiple security weaknesses can combine to expose sensitive information.
-
-SQL injection in the patient login functionality enabled access to the reports portal. The PDF password testing demonstrated weaknesses in document protection, while metadata examination provided additional information that helped guide the investigation towards an exposed database backup.
-
-The database analysis demonstrated the potential consequences of storing backup files in publicly accessible locations.
-
-This exercise provided practical experience in reconnaissance, service scanning, web application testing, directory discovery, PDF password testing, metadata analysis, database examination, and technical reporting.
-
-It also reinforced the importance of secure authentication, proper file handling, strong document protection, and responsible management of sensitive information.
-
-## 12. Evidence and Documentation
-
-The assessment is supported by 13 screenshots documenting the testing process and results.
-
-The screenshots are organized into four milestones:
-
-- M1: Initial access and reconnaissance.
-- M2: PDF password testing and document examination.
-- M3: Metadata examination and backup discovery.
-- M4: Database backup analysis.
-
-Sensitive document contents, recovered passwords, personal identifiers, and confidential records should be excluded from any public version unless their disclosure has been explicitly approved.
+| Ref | Finding | Risk | Status |
+|---|---|---|---|
+| F1 | Authentication Bypass via SQL Injection (`/patient/login.php`) | 🔴 Critical | Exploited |
+| F2 | Weak / Predictable PDF Encryption Passwords on Lab Reports | 🟠 High | Exploited |
+| F3 | Sensitive Data Exposure via Exposed Backup (`/old/mediroza_db_backup_2019.sql`) | 🔴 Critical | Exploited |
 
 ---
 
-**End of Report**
+## 2. Scope and Methodology
 
-*Networkwalks Cybersecurity Internship – Week 4*
+### Assessment Details
+
+| Detail | Information |
+|---|---|
+| Target | `https://medirozahospital.com` |
+| Engagement Type | Black-Box Web Application Penetration Test |
+| Testing Window | 23–24 November 2026 (within a 5-day authorized window) |
+| Authorization | Written client authorization, scoped to the target domain only |
+| Testing Environment | Kali Linux |
+
+No social engineering, denial-of-service testing, or testing outside the agreed scope was performed.
+
+### Methodology
+
+Testing followed a standard black-box methodology, performed independently:
+
+| Phase | Activity | Tools Used |
+|---|---|---|
+| Reconnaissance | DNS/WHOIS lookup, service and port enumeration | `whois`, `nmap` |
+| Content Discovery | Directory and file brute-forcing | `gobuster`, SecLists wordlists |
+| Vulnerability Analysis | Manual inspection of login forms and input handling | Browser DevTools, manual payload testing |
+| Exploitation | SQL injection authentication bypass | Manual SQLi payloads |
+| Password Attack | Cracking password-protected PDF files | `pdfcrack`, `qpdf` |
+| Post-Exploitation | Metadata and file property inspection | `exiftool` |
+| Data Recovery | Retrieval and parsing of an exposed database backup | `wget`, `grep`, `sed` |
+
+### Limitations Encountered
+
+- Full nmap `-sC -sV` scanning across all 65,535 ports was time-prohibitive within the engagement window; service detection on default ports was used instead.
+- Testing was limited to `medirozahospital.com` only, per scope; no other hosts on the shared server were tested.
+- Some SQL injection payloads on the staff login form (`/staff/login.php`) appeared blocked or sanitized, suggesting parameterized queries were in use on that path; it was not pursued further.
+
+---
+
+## 3. Findings and Proof of Exploitation
+
+---
+
+### Finding F1 — SQL Injection Authentication Bypass
+
+**Severity:** 🔴 Critical
+
+| Field | Detail |
+|---|---|
+| CWE | CWE-89: Improper Neutralization of Special Elements in an SQL Command |
+| OWASP | A03:2021 — Injection |
+| Location | `https://medirozahospital.com/patient/login.php` (Username field) |
+
+#### Description
+
+Directory brute-forcing with Gobuster uncovered a `/patient/` login portal and an abandoned `/old/` directory. The `/patient/login.php` form was tested for SQL injection by submitting `' OR '1'='1` in the username and password fields.
+
+The application returned a raw MySQL syntax error, confirming the input was concatenated directly into a SQL query with no sanitization:
+
+![SQL injection syntax error](Evidence/Finding1_SQLi_SyntaxError.png)
+
+Refining the payload to `admin' -- -` returned a distinct "Username not found" error rather than the generic "Invalid username or password" — confirming username enumeration as a secondary finding:
+
+![Username enumeration](Evidence/Finding2_UsernameEnumeration.png)
+
+Submitting the same payload against the confirmed username `admin` succeeded: the application authenticated the request without a valid password and redirected to `portal.php`, granting access to the patient portal and three confidential pathology reports:
+
+![Successful portal access](Evidence/Finding3_SuccessfulAccess_PortalReports.png)
+
+![Gobuster scan — /old/ directory discovered](Evidence/Finding4_GobusterScan_OldDirectoryDiscovered.png)
+
+**Root cause:** User-supplied input from the login form is concatenated directly into a SQL query without parameterization, sanitization, or prepared statements.
+
+---
+
+### Finding F2 — Weak PDF Encryption Passwords
+
+**Severity:** 🟠 High
+
+| Field | Detail |
+|---|---|
+| CWE | CWE-521: Weak Password Requirements |
+| OWASP | A02:2021 — Cryptographic Failures |
+| Location | `patient_report_1.pdf`, `patient_report_2.pdf`, `patient_report_3.pdf` |
+
+#### Description
+
+All three retrieved pathology reports were protected with standard PDF encryption (128-bit RC4/AES). Each file's password was recovered using `pdfcrack` with the `rockyou.txt` wordlist — all three cracked in seconds:
+
+| File | Patient | Password Recovered |
+|---|---|---|
+| `patient_report_1.pdf` | S. Dlamini | `123456` |
+| `patient_report_2.pdf` | P. Reddy | `password` |
+| `patient_report_3.pdf` | E. Thompson | `!@#$%^&` |
+
+```bash
+$ pdfcrack -f patient_report_1.pdf -w rockyou.txt
+found user-password: '123456'
+
+$ pdfcrack -f patient_report_2.pdf -w rockyou.txt
+found user-password: 'password'
+
+$ pdfcrack -f patient_report_3.pdf -w rockyou.txt
+found user-password: '!@#$%^&'
+```
+
+All three passwords were present in the standard `rockyou.txt` wordlist, meaning a trivial offline dictionary attack fully defeats the encryption protecting patient lab results:
+
+![pdfcrack — Report 1 password](Evidence/Finding5_PdfCrack_Report1_Password.png)
+
+![pdfcrack — Reports 2 and 3 passwords](Evidence/Finding6_PdfCrack_Reports2and3_Passwords.png)
+
+![Opened report 1](Evidence/Finding7_OpenedReport_1.png)
+
+![Opened report 2](Evidence/Finding8_OpenedReport_2.png)
+
+![Opened report 3](Evidence/Finding9_OpenedReport_3.png)
+
+**Root cause:** Patient report passwords are weak, predictable, and drawn from common password lists rather than randomly generated per-document credentials.
+
+---
+
+### Finding F3 — Metadata Leak and Exposed Database Backup
+
+**Severity:** 🔴 Critical
+
+| Field | Detail |
+|---|---|
+| CWE | CWE-200: Exposure of Sensitive Information / CWE-548: Directory Listing |
+| OWASP | A01:2021 — Broken Access Control |
+| Location | `https://medirozahospital.com/old/mediroza_db_backup_2019.sql` |
+
+#### Description
+
+Metadata inspection of the decrypted PDFs with `exiftool` revealed an internal staff comment in `patient_report_3.pdf`:
+
+```
+Author   : j.malik
+Comments : DB backup moved to /old before site migration, do not delete
+Creator  : Mediroza CMS 1.4.2
+```
+
+This comment directly named a location already flagged during recon: Gobuster had returned a 301 redirect for `/old/`. Revisiting it showed directory listing enabled, exposing a full SQL database backup:
+
+![Metadata — critical lead](Evidence/Finding11_Metadata_CriticalLead.png)
+
+![/old/ directory listing with exposed backup](Evidence/Finding10_OldDirectory_BackupExposed.png)
+
+![Staff table data](Evidence/Finding13_Staff_TableData.png)
+
+![Shareholders table data](Evidence/Finding12_Shareholders_TableData.png)
+
+The backup (`mediroza_db_backup_2019.sql`) contained two tables of direct business value:
+
+**staff table** — full names, job titles, departments, email addresses, phone numbers, national ID numbers, and monthly salaries (ZAR) for all 30 employees:
+
+| Name | Role | Department | Monthly Salary (ZAR) |
+|---|---|---|---|
+| Dr. Johan van der Merwe | Medical Director | Management | 160,000 |
+| Sarah Botha | Chief Financial Officer | Finance | 152,000 |
+| Dr. Rajesh Naidoo | Chief Pathologist | Diagnostics Lab | 138,000 |
+| Dr. Vikram Chetty | Anaesthetist | Theatre | 135,000 |
+| … | … | … | … (26 more rows) |
+
+**shareholders table** — full ownership structure of the hospital:
+
+| Shareholder | Share % | Shares Held | Class |
+|---|---|---|---|
+| Dr. Rajesh Naidoo | 18.0% | 180,000 | Ordinary |
+| Cedar Health Holdings (Pty) Ltd | 15.0% | 150,000 | Ordinary |
+| Dr. Johan van der Merwe | 12.0% | 120,000 | Ordinary |
+| Reddy Family Trust | 11.0% | 110,000 | Ordinary |
+| Thabo Molefe | 10.0% | 100,000 | Ordinary |
+| Sarah Botha | 9.0% | 90,000 | Ordinary |
+| Dr. Ahmed Kara | 8.0% | 80,000 | Preferential |
+| Naledi Zulu | 7.0% | 70,000 | Ordinary |
+| Michael Roberts | 6.0% | 60,000 | Ordinary |
+| Dr. Vikram Chetty | 4.0% | 40,000 | Preferential |
+
+Several individuals appear in both tables — meaning their salary and equity stake are both exposed together, a combination of particular sensitivity.
+
+**Root cause:** A legacy database backup was left in a publicly accessible, unauthenticated directory with directory listing enabled, and was never removed after the site migration referenced in the metadata comment.
+
+---
+
+## 4. Risk Ratings
+
+| # | Vulnerability | Rating | Justification |
+|---|---|---|---|
+| 1 | SQL injection — authentication bypass (`/patient/login.php`) | 🔴 Critical | Unauthenticated, remote, requires no special tooling; directly yields access to confidential patient health records. |
+| 2 | Username enumeration via inconsistent error messages | 🟡 Medium | Does not grant access alone but materially assists brute-force or social engineering attacks. |
+| 3 | Weak/guessable PDF passwords on patient reports | 🟠 High | Encryption is present but ineffective — all three passwords were recovered from a public wordlist in seconds. |
+| 4 | Directory listing enabled (`/old/` and other directories) | 🟡 Medium | Exposes existence and names of files, directly enabling F3. |
+| 5 | Publicly accessible legacy database backup | 🔴 Critical | Unauthenticated, remote, no skill required — exposes national ID numbers and salaries for all staff plus the full shareholder register. |
+| 6 | Sensitive information disclosure via PDF metadata | 🔵 Low | Did not itself expose patient data but was the lead that revealed F3; reflects a process gap in sanitizing documents. |
+
+**Overall engagement risk: Critical**, driven by F1 and F3, either of which alone would constitute a reportable data breach under data protection regulations (e.g. POPIA in South Africa).
+
+---
+
+## 5. Recommendations and Remediation
+
+| Finding | Recommendation | Priority |
+|---|---|---|
+| SQL injection (login bypass) | Rewrite all database queries to use parameterized queries / prepared statements. Never concatenate user input into SQL strings. Apply server-side input validation as defence in depth. | 🔴 Immediate |
+| Username enumeration | Return one identical, generic error message ("Invalid username or password") for every failed login, regardless of which field was wrong. | 🔴 Immediate |
+| Weak PDF passwords | Replace the current scheme with a cryptographically random, per-document password of at least 12 characters, delivered to the patient through a separate secure channel (e.g. SMS or email one-time link). | 🟠 High |
+| Directory listing enabled | Disable directory indexing on the web server across all directories (`Apache: Options -Indexes`). | 🟠 High |
+| Exposed database backup | Immediately remove `mediroza_db_backup_2019.sql` from public web space. Audit the entire webroot for other forgotten files. Store all backups outside the web-accessible directory, encrypted, with access restricted to authorized administrators. | 🔴 Immediate |
+| Sensitive metadata in documents | Strip author, comment and internal-path metadata from all PDFs before external distribution. Review the CMS document-generation and publishing workflow. | 🟡 Medium |
+| General | Given that national ID numbers and financial data were exposed, the client should seek legal/regulatory advice on notification obligations under POPIA. Staff credentials found in the backup should be rotated as a precaution. | 🔴 Immediate |
+
+### Summary
+
+All findings stem from a small number of root causes: unsanitized user input, weak credential policy, a misconfigured web server (directory listing), and a lack of process around removing legacy files after a site migration. None of the remediation steps require significant engineering effort. Addressing F1 (SQL injection) and F3 (exposed database backup) should be treated as the top priority given their critical severity and the sensitivity of the data involved.
+
+---
+
+**Networkwalks Cybersecurity Internship — Week 4**  
+*Mediroza General Hospital — Authorized Black-Box Web Application Penetration Testing*
